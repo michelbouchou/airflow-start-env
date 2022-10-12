@@ -1,0 +1,174 @@
+version: 2.1
+
+orbs:
+  jira: circleci/jira@1.1.1
+  python: circleci/python@1.5.0
+
+jobs:
+  lint:
+    docker:
+      - image: cimg/python:3.7.11-node
+
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - pre-commit-envs-{{ checksum ".pre-commit-config.yaml" }}
+      - run:
+          command: |
+            echo pre-commit > pre-commit-reqs.txt
+      - python/install-packages:
+          # the install-packages command only support txt files so
+          # we create one before pushing
+          pip-dependency-file: pre-commit-reqs.txt
+          pkg-manager: pip
+      - run:
+          name: "Run linters"
+          command: |
+            pre-commit run --all
+      - save_cache:
+          paths:
+            - ~/.cache/pre-commit
+          key: pre-commit-envs-{{ checksum ".pre-commit-config.yaml" }}
+
+  sonarqube:
+    docker:
+      - image: emeraldsquad/sonar-scanner:latest
+    steps:
+      - checkout
+      - attach_workspace:
+          at: reports
+      - run:
+          name: Sonarqube scan
+          command: |
+            sonar-scanner \
+              -Dsonar.projectKey=${CIRCLE_PROJECT_REPONAME} \
+              -Dsonar.sources=dags,plugins \
+              -Dsonar.tests=tests \
+              -Dsonar.host.url=${SONAR_HOST} \
+              -Dsonar.login=${SONAR_TOKEN} \
+              -Dsonar.python.version=3.8 \
+              -Dsonar.python.coverage.reportPaths=reports/coverage.xml \
+              ;
+
+  test_sql:
+    docker:
+      - image: google/cloud-sdk
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ../workspace
+      - PRIVATE_ORB/gcp_authenticate
+      - run:
+          name: Test Queries
+          command: |
+            GCP_PROJECT="STG_PROJECT_ID" gcloud config list project
+            pip install --upgrade google-cloud
+            pip install --upgrade google-cloud-bigquery
+            pip install --upgrade google-api-python-client
+            python3 tests/sql/sql_queries.py
+
+  deploy:
+    docker:
+      - image: google/cloud-sdk
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ../workspace
+      - PRIVATE_ORB/gcp_authenticate
+      - run:
+          name: Deploy composer
+          command: |
+            gsutil -m rsync -d -r dags ${DATA_DAGS_PATH}
+            gsutil -m rsync -d -r plugins ${DATA_PLUGINS_PATH}
+            # gsutil -m rsync -d -r data/* ${DATA_DATA_PATH}
+
+workflows:
+  version: 2
+
+  commit_workflow:
+    jobs:
+      # Lint and test
+      - lint:
+          name: Lint
+      - python/test:
+          name: Test
+          pkg-manager: pipenv
+          test-tool: pytest
+          test-tool-args: "--cov-report=html --cov-report=xml:test-reports/coverage.xml"
+          version: "3.7"
+          args: "--dev"
+          post-steps:
+            - store_artifacts:
+                path: htmlcov
+            - store_artifacts:
+                path: test-reports
+            - persist_to_workspace:
+                root: test-reports
+                paths:
+                  - coverage.xml
+      - test_sql:
+          name: Test SQL Queries
+          filters:
+            branches:
+              only:
+                - master
+      - sonarqube:
+          name: Sonarqube
+          context: Sonarqube
+          requires:
+            - Test
+          filters:
+            branches:
+              only:
+                - /release\/.*/
+                - sonarqube
+
+      # Hold to deploy in recette (hold only for develop)
+      - hold:
+          name: Go Recette
+          type: approval
+          requires:
+            - Lint
+            - Test
+            - Sonarqube
+          filters:
+            branches:
+              only:
+                - /release\/.*/
+      - deploy:
+          name: Deploy recette
+          requires:
+            - Go Recette
+          filters:
+            branches:
+              only:
+                - /release\/.*/
+          post-steps:
+            - jira/notify:
+                environment_type: staging
+                job_type: deployment
+
+      # Manual deploy (prod)
+      - hold:
+          name: Go Prod
+          type: approval
+          requires:
+            - Lint
+            - Test
+          filters:
+            branches:
+              only:
+                - master
+      - deploy:
+          name: Deploy prod
+          requires:
+            - Go Prod
+          filters:
+            branches:
+              only:
+                - master
+          post-steps:
+            - jira/notify:
+                environment_type: production
+                job_type: deployment

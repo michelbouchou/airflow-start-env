@@ -1,0 +1,17 @@
+[sqlfluff]
+verbose = 1
+dialect = bigquery
+exclude_rules = L014, L027, L031, L039, L034
+
+[sqlfluff:rules]
+tab_space_size = 4
+indent_unit = space
+max_line_length = 160
+
+[sqlfluff:rules:L014]  # Unquoted identifiers
+capitalisation_policy = capitalise
+unquoted_identifiers_policy = all
+indented_joins = True
+
+[sqlfluff:rules:L016]
+ignore_comment_lines = False

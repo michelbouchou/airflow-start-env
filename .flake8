@@ -1,0 +1,24 @@
+[flake8]
+max-line-length = 88
+extend-ignore = E203
+exclude =
+    .svn,
+    CVS,
+    .bzr,
+    .hg,
+    .git,
+    __pycache__,
+    .tox,
+    .eggs,
+    *.egg,
+    # Start of custom config
+    venv,
+    .venv,
+    # Files that contain a lot of text (would not be readable with max-line-length)
+    plugins/config/coup_de_pouce.py,
+    plugins/config/expose.py,
+    # Future refacto
+    dags/d05_expose/expose_send_mailing.py,
+    plugins/documentation/data_processing.py
+
+max-complexity = 14

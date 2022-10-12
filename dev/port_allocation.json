@@ -1,0 +1,14 @@
+{
+  "user1": {
+    "webserver": 10000,
+    "log_server": 11000
+  },
+  "user2": {
+    "webserver": 10001,
+    "log_server": 11001
+  },
+  "user3": {
+    "webserver": 10002,
+    "log_server": 11002
+  }
+}

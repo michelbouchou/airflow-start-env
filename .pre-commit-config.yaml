@@ -1,0 +1,38 @@
+# Apply to all files without commiting:
+#   pre-commit run --all-files
+# Commit without running this file
+#   git commit --no-verify
+# Update this file:
+#   pre-commit autoupdate
+repos:
+  - repo: https://github.com/psf/black
+    rev: 22.3.0
+    hooks:
+      - id: black
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.2.0
+    hooks:
+      - id: trailing-whitespace # Removes trailing whitespaces
+      - id: mixed-line-ending # Replaces all line endings with the most frequent one
+      - id: end-of-file-fixer # Makes sure files end with one single newline
+      - id: check-ast # Fails if syntax errors in python files
+      - id: check-yaml # Fails if yaml is not valid
+      - id: check-json # Fails if json is not valid
+      - id: check-merge-conflict # Fails if merge conflict markers are present
+      - id: check-toml # Fails if invalid toml file
+  - repo: https://gitlab.com/pycqa/flake8
+    rev: 3.9.2
+    hooks:
+      - id: flake8
+  - repo: https://github.com/pycqa/isort
+    rev: 5.10.1
+    hooks:
+      - id: isort
+  # - repo: https://github.com/sqlfluff/sqlfluff
+  #   rev: 0.9.4
+  #   hooks:
+  #     - id: sqlfluff-fix
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v2.6.2
+    hooks:
+      - id: prettier
